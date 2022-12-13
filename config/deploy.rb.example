@@ -1,0 +1,45 @@
+require 'bundler/capistrano'
+
+set :application, "mygov-discovery"
+set :scm, "git"
+set :repository, "git@github.com:GSA-OCSIT/mygov-discovery.git"
+# Use this if you're stuck behind a draconion VPN
+# set(:real_revision) { source.query_revision( revision ) { |cmd| capture(cmd) } }
+set :use_sudo, false
+set :deploy_via, :remote_cache
+
+set :user, "YOUR_DEPLOY_USERNAME"
+set :deploy_to, "/home/#{user}/#{application}"
+
+set :domain, "YOUR DOMAIN HERE"
+role :web, "#{domain}"                          # Your HTTP server, Apache/etc
+role :app, "#{domain}"                          # This may be the same as your `Web` server
+role :db,  "#{domain}", :primary => true        # This is where Rails migrations will run
+
+before 'deploy:assets:precompile', 'deploy:symlink_db'
+before "deploy:create_symlink", "deploy:web:disable"
+after "deploy:restart", "deploy:web:enable"
+after "deploy:restart", "deploy:cleanup"
+before "deploy:cleanup", "restart_resque_workers"
+
+# If you are using Passenger mod_rails uncomment this:
+namespace :deploy do
+  task :start do ; end
+  task :stop do ; end
+  task :restart, :roles => :app, :except => { :no_release => true } do
+    run "#{try_sudo} touch #{File.join(current_path,'tmp','restart.txt')}"
+  end
+end
+
+namespace :deploy do
+  desc "Symlinks the database.yml"
+  task :symlink_db, :roles => :app do
+    run "ln -nfs #{deploy_to}/shared/config/database.yml #{release_path}/config/database.yml"
+    run "ln -nfs #{deploy_to}/shared/config/resque.yml #{release_path}/config/resque.yml"
+  end
+end
+
+task :restart_resque_workers, :roles => :web do
+  run "#{release_path}/script/stop_resque_workers"
+  run "RELEASE_PATH=#{release_path} #{release_path}/script/start_resque_workers"
+end

@@ -1,0 +1,10 @@
+<% unless @page.nil? %>
+
+  <h2>Related Pages</h2>
+  <ul>
+  <% @page.find_related_tags.each do |page| %>
+    <li><a href="<%= page.url %>"><%= page.title %>
+  <% end %>
+  </ul>
+
+<% end %>
